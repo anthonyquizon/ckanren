@@ -57,7 +57,7 @@
     [(pred (car dom)) dom]
     [else (drop-before pred (cdr dom))]))
 
-(define (map-sum)
+(define (map-sum f)
   (letrec 
     [(loop (lambda [ls] 
              (cond
@@ -65,7 +65,7 @@
                [else 
                  (mk:conde
                    [(f (car ls))]
-                   [(loop (cdr ls))]) ])))]
+                   [(loop (cdr ls))])])))]
     loop))
 
 (define (get-dom x d)
@@ -74,7 +74,7 @@
     [else #f]))
 
 (define (value?-dom v) (and (integer? v) (<= 0 v)))
-(define (memv?-dom v dom) (and (value?-deta v) (memv v dom)))
+(define (memv?-dom v dom) (and (value?-dom v) (memv v dom)))
 (define (null?-dom dom) (null? dom))
 (define (singleton?-dom dom) (null? (cdr dom)))
 (define (singleton-element-dom dom) (car dom))
@@ -120,7 +120,7 @@
 
 (define (any-relevant/var? t x*)
   (cond
-    [(var? t) (memq t x*)]
+    [(mk:var? t) (memq t x*)]
     [(pair? t) (or (any-relevant/var? (car t) x*)
                    (any-relevant/var? (cdr t) x*))]
     [else #f]))
@@ -129,11 +129,11 @@
   (cond
     [(null? p) '()]
     [else 
-      (let [(x (lhs (car p)))
-            (v (rhs (car p)))
+      (let [(x (mk:lhs (car p)))
+            (v (mk:rhs (car p)))
             (r (recover/vars (cdr p)))]
         (cond
-          [(var? v) (ext/vars v (ext/vars x r))]
+          [(mk:var? v) (ext/vars v (ext/vars x r))]
           [else (ext/vars x r)]))]))
 
 (define (ext/vars x r)
@@ -144,8 +144,8 @@
 (define (verify-all-bound c bound-x*)
   (unless (null? c)
     (cond
-      [(find (lambda [x] (not (memq x bound-x*)))
-             (filter var? (oc->rands (car c))))
+      [(findf (lambda [x] (not (memq x bound-x*)))
+             (filter mk:var? (oc->rands (car c))))
        => (lambda [x]
             (error 'verify-all-bound
                    "Constrained variable ~s without dom"
@@ -188,7 +188,7 @@
 (define (== u v)
   (goal-construct (==c u v)))
 
-(define (==c w v)
+(define (==c u v)
   (lambdaM
     [a : s d c]
     (cond 
@@ -231,7 +231,7 @@
              [else a])))
 
 (define (reify x)
-  (fresh []
+  (mk:fresh []
     ((enforce-constraints) x)
     (mk:lambdaG [a : s d c]
                 (mk:choiceG
@@ -245,14 +245,14 @@
                             [(null? c) v]
                             [else 
                               (((reify-constraints) v r) a)]))]))
-                  empty-f))))
+                  mk:empty-f))))
 
 (define (process-prefix-fd p c)
   (cond 
     [(null? p) identityM]
     [else
-      (let [(x (lhs (car p)))
-            (v (rhs (car p)))]
+      (let [(x (mk:lhs (car p)))
+            (v (mk:rhs (car p)))]
         (let [(t (composeM
                    (run-constraints `(,x) c)
                    (process-prefix-fd (cdr p) c)))]
@@ -266,7 +266,7 @@
 (define (process-dom v dom)
   (lambdaM [a]
            (cond
-             [(var? v) ((update-var-dom v dom) a)]
+             [(mk:var? v) ((update-var-dom v dom) a)]
              [(memv?-dom v dom) a]
              [else #f])))
 
@@ -286,26 +286,26 @@
            (cond
              [(singleton?-dom dom)
               (let* [(n (singleton-element-dom dom))
-                     (a (make-a (ext-s x n s) d c))]
+                     (a (make-a (mk:ext-s x n s) d c))]
                 ((run-constraints `(,x) c) a))]
              [else (make-a s (ext-d x dom d) c)])))
 
 (define (enforce-constraints-fd x)
-  (fresh []
+  (mk:fresh []
     (force-ans x)
-    (lambdaG [a : s d c]
-             (let [(bound-x* (map lhs d))]
+    (mk:lambdaG [a : s d c]
+             (let [(bound-x* (map mk:lhs d))]
                (verify-all-bound c bound-x*)
-               ((onceo (force-ans bound-x*)) a)))))
+               ((mk:onceo (force-ans bound-x*)) a)))))
 
 (define (force-ans x)
-  (lambdaG [a : s d c]
-           (let [(x (walk x s))]
+  (mk:lambdaG [a : s d c]
+           (let [(x (mk:walk x s))]
              ((cond
-                [(and (var? x) (get-dom x d))
+                [(and (mk:var? x) (get-dom x d))
                  => (map-sum (lambda [v] (== x v)))]
                 [(pair? x)
-                 (fresh []
+                 (mk:fresh []
                    (force-ans (car x))
                    (force-ans (cdr x)))]
                 [else succeed]) 
@@ -323,9 +323,9 @@
 (define-syntax let-dom
   (syntax-rules [:]
     [(_ (s d) ((u : u-dom) ...) body)
-     (let [(u (walk u s)) ...]
+     (let [(u (mk:walk u s)) ...]
        (let [(u-dom (cond
-                      [(var? u) (get-dom u d)]
+                      [(mk:var? u) (get-dom u d)]
                       [else (make-dom `(,u))]))
              ...]
          body))]))
@@ -346,7 +346,7 @@
 
 (define (dom-c-fd x n*)
   (lambdaM [a : s d c]
-           ((process-dom (walk x s) (make-dom n*)) a)))
+           ((process-dom (mk:walk x s) (make-dom n*)) a)))
 
 (define (<=fd u v)
   (goal-construct (<=c-fd u v)))
@@ -380,7 +380,6 @@
                            (range
                              (- w-min u-max) (- w-max u-min))))))))
 
-
 (define (=/=fd u v)
   (goal-construct (=/=c-fd u v)))
 
@@ -412,19 +411,18 @@
 
 (define (all-diff-c-fd v*)
   (lambdaM [a : s d c]
-           (let [(v* (walk v* s))]
+           (let [(v* (mk:walk v* s))]
              (cond
-               [(var? v*)
+               [(mk:var? v*)
                 (let* [(oc (build-oc all-diff-c-fd v*))]
                   (make-a s d (ext-c oc c)))]
                [else 
-                 (let-values [((x* n*) (partition var? v*))]
-                   (let [(n* (list-sort < n*))]
+                 (let-values [((x* n*) (partition mk:var? v*))]
+                   (let [(n* (sort n* <))]
                      (cond
                        [(list-sorted? < n*)
                         ((all-diff/c-fd x* n*) a)]
                        [else #f])))]))))
-
 
 (define (all-diff/c-fd y* n*)
   (lambdaM [a : s d c]
@@ -435,9 +433,9 @@
                        (a (make-a s d (ext-c oc c)))]
                   ((exclude-from-dom (make-dom n*) d x*) a))]
                [else 
-                 (let [(y (walk (car y*) s))]
+                 (let [(y (mk:walk (car y*) s))]
                    (cond
-                     [(var? y) (loop (cdr y*) n* (cons y x*))]
+                     [(mk:var? y) (loop (cdr y*) n* (cons y x*))]
                      [(memv?-dom y n*) #f]
                      [else (let [(n* (list-insert < y n*))]
                              (loop (cdr y*) n* x*))]))]))))

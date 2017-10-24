@@ -1,6 +1,6 @@
 #lang racket
 
-(provide empty-s unitG mzeroG choiceG lambdaG rhs lhs)
+(provide (all-defined-out))
 
 (define (var dummy) (vector dummy))
 (define (var? x) (vector? x))
@@ -73,7 +73,7 @@
 
 (define-syntax lambdaG
   (syntax-rules [:]
-    ((_ (a : s d c r) body)
+    ((_ (a : s d c) body)
      (lambda [a]
        (let [(s (car a))
              (d (cadr a))
@@ -173,4 +173,25 @@
   (syntax-rules []
     [(_ e) e]
     [(_ e0 e ...) (mplusG e0 (lambdaF [] (mplusG* e ...)))]))
+
+
+;; Impure
+(define-syntax condu
+  (syntax-rules []
+    [(_ (g0 g ...) (g1 g^ ...) ...) 
+     (lambdaG [a] 
+              (inc (if-u ((g0 a) g ...) ((g1 a) g^ ...) ...)))])) 
+
+(define-syntax if-u
+  (syntax-rules []
+    [(_) (mzeroG)]
+    [(_ (e g ...) b ...)
+     (let loop [(a-inf e)]
+       (case-inf a-inf
+                 [() (if-u b ...)]
+                 [(f) (inc (loop (f)))]
+                 [(a) (bindG* a-inf g ...)]
+                 [(a f) (bindG* a g ...)]))]))
+
+(define (onceo g) (condu (g)))
 
